@@ -41,7 +41,7 @@ function findBoundary(text: string, minCut: number, maxCut: number) {
   return undefined
 }
 
-function takeChunk(text: string, config: VoiceConfig, final: boolean) {
+function takeChunk(text: string, config: VoiceConfig, final: boolean, trace?: (decision: Record<string, unknown>) => void) {
   const input = text.trimStart()
   if (!input) return undefined
 
@@ -50,6 +50,7 @@ function takeChunk(text: string, config: VoiceConfig, final: boolean) {
     const raw = input.slice(0, newline).trim()
     const rest = input.slice(newline + 1).trimStart()
     const prepared = prepareSanitizedSpeechText(raw, config.maxSpeechChars)
+    trace?.({ reason: "newline", input, text: prepared, rest, final })
 
     return {
       rest,
@@ -65,18 +66,30 @@ function takeChunk(text: string, config: VoiceConfig, final: boolean) {
   const hardLimit = Math.min(config.maxSpeechChunkChars, input.length)
   const softLimit = Math.min(config.streamFlushChars, hardLimit)
 
-  if (!final && input.length < softLimit) return undefined
+  if (!final && input.length < softLimit) {
+    trace?.({ reason: "waiting-for-length", input, final })
+    return undefined
+  }
 
   let cut = findBoundary(input, softLimit, hardLimit)
+  let reason = cut ? "strong-boundary" : ""
   if (!cut && (final || input.length >= config.maxSpeechChunkChars)) {
     cut = findBoundary(input, 1, hardLimit)
+    if (cut) reason = final ? "final-boundary" : "length-limit-boundary"
   }
-  if (!cut && final) cut = input.length
-  if (!cut) return undefined
+  if (!cut && final) {
+    cut = input.length
+    reason = "final-remainder"
+  }
+  if (!cut) {
+    trace?.({ reason: "waiting-for-boundary", input, final, softLimit, hardLimit })
+    return undefined
+  }
 
   const raw = input.slice(0, cut).trim()
   const rest = input.slice(cut).trimStart()
   const prepared = prepareSanitizedSpeechText(raw, config.maxSpeechChars)
+  trace?.({ reason, input, text: prepared, rest, final, softLimit, hardLimit })
 
   return {
     rest,
@@ -89,12 +102,12 @@ function takeChunk(text: string, config: VoiceConfig, final: boolean) {
   }
 }
 
-export function drainStreamChunks(text: string, config: VoiceConfig, final = false) {
+export function drainStreamChunks(text: string, config: VoiceConfig, final = false, trace?: (decision: Record<string, unknown>) => void) {
   const chunks: PreparedChunk[] = []
   let rest = text
 
   while (rest) {
-    const next = takeChunk(rest, config, final)
+    const next = takeChunk(rest, config, final, trace)
     if (!next) break
     rest = next.rest
     if (next.chunk) chunks.push(next.chunk)

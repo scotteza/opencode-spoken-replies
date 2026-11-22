@@ -86,7 +86,7 @@ export class StreamingController {
     const key = streamKey(event, block)
     const previous = this.streams.get(key)
     if (previous?.completed) return undefined
-    const stream = previous ?? new StreamBuffer(event.sessionID, event.assistantMessageID, block)
+    const stream = previous ?? new StreamBuffer(event.sessionID, event.assistantMessageID, block, event.ordinal)
     this.streams.set(key, stream)
     while (this.streams.size > 200) {
       const removable = [...this.streams].find(([candidate, item]) => candidate !== key && (item.completed || item.sessionID !== event.sessionID))
@@ -110,6 +110,7 @@ export class StreamingController {
         origin: "session.stream.delta",
         sessionID: event.sessionID,
         messageID: event.assistantMessageID,
+        partID: String(event.ordinal),
         block,
       })
     }
@@ -125,6 +126,7 @@ export class StreamingController {
         origin: "session.stream.ended",
         sessionID: event.sessionID,
         messageID: event.assistantMessageID,
+        partID: String(event.ordinal),
         block,
       })
     }

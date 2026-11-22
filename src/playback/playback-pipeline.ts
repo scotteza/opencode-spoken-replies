@@ -9,6 +9,7 @@ import type { VoiceStateStore } from "../state/voice-state-store.js"
 import { audioPlayerInstallHint } from "../platform-help.js"
 import { isMissingBinary, PlayerService, type PlayFileTask } from "./player-service.js"
 import { PlaybackQueue, type QueueItem, type QueueTrace, type ReadyAudioItem } from "./queue.js"
+import { speechDiagnostic } from "../speech-diagnostics.js"
 
 type GenerateTask = {
   item: QueueItem
@@ -57,6 +58,11 @@ export class PlaybackPipeline {
   enqueuePreparedChunk(text: string, pauseMs: number, source: SpeechSource, trace?: QueueTrace) {
     const events = this.queue.enqueuePreparedChunk(text, pauseMs, source, this.epoch, this.config.maxSpeechChunkChars, trace)
     for (const event of events) {
+      if (event.type === "enqueued" || event.type === "coalesced") {
+        speechDiagnostic(`queue.${event.type}`, { itemID: event.item.id, epoch: event.item.epoch, text: event.item.text, source, trace: event.item.trace, pauseMs: event.item.pauseMs })
+      } else {
+        speechDiagnostic("queue.trimmed", { queueLength: event.queueLength, maxQueueLength: event.maxQueueLength })
+      }
       if (event.type === "enqueued") {
         if (event.duplicate) {
           this.log.warn("duplicate chunk enqueued", {
@@ -235,7 +241,9 @@ export class PlaybackPipeline {
       let segmentCount = 0
       let queuedPause = false
       try {
+        speechDiagnostic("generation.start", { itemID: item.id, epoch: item.epoch, text: item.text, trace: item.trace })
         for await (const generated of this.runtime.stream(item.text, item.epoch, item.voice)) {
+          speechDiagnostic("generation.segment", { itemID: item.id, epoch: item.epoch, segmentIndex: segmentCount + 1, text: generated.text })
           if (!(await this.waitForReadyAudioCapacity(current))) {
             await fs.unlink(generated.file).catch(() => undefined)
             break
@@ -283,6 +291,7 @@ export class PlaybackPipeline {
           queuedPause,
           readyAudioLength: this.queue.readyAudio.length,
         })
+        speechDiagnostic("generation.complete", { itemID: item.id, epoch: item.epoch, segmentCount })
       } catch (error) {
         this.log.error("queue item failed", {
           itemID: item.id,
@@ -316,6 +325,7 @@ export class PlaybackPipeline {
       this.syncActivity()
 
       try {
+        speechDiagnostic("playback.start", { itemID: item.sourceItem.id, epoch: item.epoch, readyAudioID: item.id, kind: item.kind, ...(item.kind === "audio" ? { text: item.text } : { durationMs: scalePauseForSpeed(item.durationMs, this.config.speed) }) })
         if (item.kind === "pause") {
           this.log.info("playback pause start", {
             readyAudioID: item.id,
@@ -372,6 +382,7 @@ export class PlaybackPipeline {
           await this.handleRuntimeError(error)
         }
       } finally {
+        speechDiagnostic("playback.end", { itemID: item.sourceItem.id, epoch: item.epoch, readyAudioID: item.id, kind: item.kind, interrupted: current.interrupted, stale: this.isStale(item.sourceItem) })
         if (item.kind === "audio") await fs.unlink(item.file).catch(() => undefined)
         if (this.currentPlay === current) this.currentPlay = undefined
         this.syncActivity()
