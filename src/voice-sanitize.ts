@@ -372,6 +372,7 @@ export class SpeechSanitizer {
   push(text: string, final = false) {
     this.buffer += text
     const output: string[] = []
+    let previousPartial = false
 
     while (true) {
       if (this.inCodeBlock) {
@@ -385,6 +386,7 @@ export class SpeechSanitizer {
         if (isPotentialTableRow(line) || !line.trim()) continue
         this.inTable = false
         output.push(this.processLine(line))
+        previousPartial = false
         continue
       }
 
@@ -394,6 +396,7 @@ export class SpeechSanitizer {
 
         if (isTableSeparatorLine(line)) {
           output.push(TABLE_PLACEHOLDER)
+          previousPartial = false
           this.pendingTableHeader = undefined
           this.inTable = true
           continue
@@ -402,6 +405,7 @@ export class SpeechSanitizer {
         const header = this.pendingTableHeader
         this.pendingTableHeader = undefined
         output.push(this.processPlainLine(header, true), this.processLine(line))
+        previousPartial = false
         continue
       }
 
@@ -410,7 +414,10 @@ export class SpeechSanitizer {
         if (!final && this.buffer && !this.shouldHoldPartialLine()) {
           const partial = this.takePartialText()
           if (!partial) break
-          output.push(sanitizeInline(partial, this.settings))
+          const sanitized = sanitizeInline(partial, this.settings)
+          if (sanitized && previousPartial) output[output.length - 1] += ` ${sanitized}`
+          else if (sanitized) output.push(sanitized)
+          previousPartial = !!sanitized || previousPartial
           this.atLineStart = false
           continue
         }
@@ -418,6 +425,7 @@ export class SpeechSanitizer {
       }
 
       output.push(this.processLine(line))
+      previousPartial = false
     }
 
     if (final) {

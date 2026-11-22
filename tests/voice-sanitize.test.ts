@@ -180,6 +180,18 @@ Some final text with a [relative path reference](./README.md) and a URL: https:/
 })
 
 describe("SpeechSanitizer", () => {
+  it("does not insert a newline between partial pieces of one line", () => {
+    const sanitizer = createSpeechSanitizer()
+    expect(sanitizer.push("I will not change any files.", false)).toBe("I will not change any files.")
+  })
+
+  it("keeps real newlines before partial pieces", () => {
+    const sanitizer = createSpeechSanitizer()
+    expect(sanitizer.push("First line\nI will not change any files.", false)).toBe(
+      "First line.\nI will not change any files.",
+    )
+  })
+
   it("removes emphasis markers split across streaming deltas", () => {
     const sanitizer = createSpeechSanitizer()
     const chunks = [

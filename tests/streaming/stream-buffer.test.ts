@@ -3,6 +3,29 @@ import { DEFAULT_CONFIG } from "../../src/voice-constants.js"
 import { StreamBuffer } from "../../src/streaming/stream-buffer.js"
 
 describe("StreamBuffer", () => {
+  it.each([
+    "I’ll trace the plugin from its OpenCode event hooks through speech generation and playback, then review how its tests cover those paths. I will not change any files.",
+    "The plugin has separate server and terminal UI parts. The terminal UI receives the conversation events and runs playback; the server stores the enabled state and adds speech-friendly prompt guidance.",
+  ])("does not isolate the final word of a streamed paragraph", (text) => {
+    const buffer = new StreamBuffer("session", "message", "message")
+    const delta = buffer.applyDelta(text, "message", DEFAULT_CONFIG, true)
+    const final = buffer.applyFinal(text, "message", DEFAULT_CONFIG, false)
+    const chunks = [...delta.chunks, ...final.chunks].map((chunk) => chunk.text)
+    expect(chunks.join(" ")).toBe(text)
+    expect(chunks).not.toContain("files.")
+    expect(chunks).not.toContain("guidance.")
+  })
+
+  it("keeps a final word together when deltas split before it", () => {
+    const buffer = new StreamBuffer("session", "message", "message")
+    const first = buffer.applyDelta("I will not change any ", "message", DEFAULT_CONFIG, true)
+    const second = buffer.applyDelta("files", "message", DEFAULT_CONFIG, false)
+    const final = buffer.applyFinal("I will not change any files", "message", DEFAULT_CONFIG, false)
+    expect([...first.chunks, ...second.chunks, ...final.chunks].map((chunk) => chunk.text)).toEqual([
+      "I will not change any files.",
+    ])
+  })
+
   it("accumulates deltas and drains chunks", () => {
     const config = { ...DEFAULT_CONFIG, streamFlushChars: 10, maxSpeechChunkChars: 30 }
     const buffer = new StreamBuffer("session", "message", "message")
