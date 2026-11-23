@@ -62,7 +62,16 @@ export class QuestionController {
     const questionTexts = request.fields
       .filter((field) => !("hidden" in field) || !field.hidden)
       .filter((field) => !("when" in field) || !field.when?.length)
-      .map((field, index) => ({ index, text: (field.title ?? "").trim() }))
+      .map((field, index) => {
+        const question = (field.description?.trim() || field.title?.trim() || "")
+        const options = "options" in field ? field.options ?? [] : []
+        const choices = options.map((option, optionIndex) => {
+          const description = option.description?.trim()
+          return `Option ${optionIndex + 1}: ${option.label.trim()}.${description ? ` ${description}` : ""}`
+        })
+        if ("custom" in field && field.custom) choices.push(`Option ${options.length + 1}: Type your own answer.`)
+        return { index, text: [question, ...choices].filter(Boolean).join("\n") }
+      })
       .filter((question) => Boolean(question.text))
     if (questionTexts.length === 0) return
 

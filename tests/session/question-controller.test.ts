@@ -23,7 +23,8 @@ function createRequest(overrides: Partial<QuestionRequest> = {}): QuestionReques
       {
         type: "string",
         key: "answer",
-        title: "Should question prompts be spoken?",
+        title: "Question speech",
+        description: "Should question prompts be spoken?",
         options: [{ value: "yes", label: "Yes", description: "Speak them" }],
       },
     ],
@@ -98,7 +99,8 @@ describe("QuestionController", () => {
     await harness.ask()
 
     expect(harness.enqueued).toHaveLength(1)
-    expect(harness.enqueued[0]?.text).toBe("Should question prompts be spoken?")
+    expect(harness.enqueued.map((item) => item.text).join(" ")).toContain("Should question prompts be spoken?")
+    expect(harness.enqueued.map((item) => item.text).join(" ")).toContain("Option 1: Yes. Speak them")
     expect(harness.enqueued[0]?.source).toBe("question")
     expect(harness.enqueued[0]?.trace).toMatchObject({
       origin: "question.asked",
@@ -161,12 +163,31 @@ describe("QuestionController", () => {
     expect(harness.enqueued).toHaveLength(1)
   })
 
-  it("uses only question text and omits headers and options", async () => {
+  it("speaks the question and choices instead of the short header", async () => {
     const harness = createHarness()
 
     await harness.ask()
 
-    expect(harness.enqueued.map((item) => item.text).join("\n")).toBe("Should question prompts be spoken?")
+    const spoken = harness.enqueued.map((item) => item.text).join(" ")
+    expect(spoken).toContain("Should question prompts be spoken?")
+    expect(spoken).toContain("Option 1: Yes. Speak them")
+    expect(spoken).not.toContain("Question speech")
+  })
+
+  it("includes custom answers and handles options without descriptions", async () => {
+    const harness = createHarness()
+    await harness.ask(createRequest({
+      fields: [{
+        type: "string", key: "answer", title: "Trip", description: "Where should we go?",
+        options: [{ value: "beach", label: "Beach (Recommended)" }, { value: "city", label: "City", description: "Explore." }],
+        custom: true,
+      }],
+    }))
+    const spoken = harness.enqueued.map((item) => item.text).join(" ")
+    expect(spoken).toContain("Where should we go?")
+    expect(spoken).toContain("Option 1: Beach (Recommended).")
+    expect(spoken).toContain("Option 2: City. Explore.")
+    expect(spoken).toContain("Option 3: Type your own answer.")
   })
 
   it("speaks only the first question from multi-question requests", async () => {
