@@ -92,23 +92,6 @@ In the history picker, selecting an entry enables speech if it was off. On some 
 
 ## Build and use a local checkout
 
-### Temporary speech diagnostics
-
-This diagnostic branch can write private response text to a local JSON Lines
-file. It is disabled by default. Set an absolute file path in the environment
-of the OpenCode **terminal UI process** before starting the test:
-
-```sh
-OPENCODE_TTS_DIAGNOSTIC_FILE="$HOME/opencode-speech-diagnostics.jsonl" opencode
-```
-
-The file records stream deltas, chunk decisions, synthesis segments, and
-playback timing. Existing files are appended to; use a new path for a clean
-test. The parent directory must already exist. Failure to write the file does
-not interrupt speech. Stop logging by starting OpenCode without the variable.
-Inspect the file for private content before sharing it. Delete the diagnostic
-file when it is no longer needed.
-
 To modify the plugin, install Node.js 20.9 or later and Bun 1.3.14 or later, then run these commands from the repository root.
 
 On WSL with Ubuntu, install Bun from your WSL terminal (not PowerShell):

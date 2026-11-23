@@ -2,7 +2,6 @@ import { createSpeechSanitizer, type SpeechSanitizer } from "../voice-sanitize.j
 import { drainStreamChunks } from "../voice-text.js"
 import type { PreparedChunk, VoiceBlock, VoiceConfig } from "../voice-types.js"
 import { appendSpeechBuffer } from "../shared/voice-utils.js"
-import { speechDiagnostic } from "../speech-diagnostics.js"
 
 export type StreamBlock = Extract<VoiceBlock, "reason" | "message">
 
@@ -46,7 +45,6 @@ export class StreamBuffer {
     readonly sessionID: string,
     readonly messageID: string,
     public block: StreamBlock,
-    readonly ordinal?: number,
   ) {}
 
   applyDelta(delta: string, block: StreamBlock, config: VoiceConfig, newStream: boolean) {
@@ -56,11 +54,7 @@ export class StreamBuffer {
     this.rawText += delta
     this.textLength = this.rawText.length
     this.buffer = appendSpeechBuffer(this.buffer, this.sanitizer.push(delta, false))
-    const context = { sessionID: this.sessionID, messageID: this.messageID, block, ordinal: this.ordinal }
-    speechDiagnostic("stream.delta", { ...context, delta, buffer: this.buffer })
-    const drained = drainStreamChunks(this.buffer, config, false, (decision) => speechDiagnostic("stream.decision", {
-      ...context, ...decision, maxSpeechChunkChars: config.maxSpeechChunkChars, streamFlushChars: config.streamFlushChars,
-    }))
+    const drained = drainStreamChunks(this.buffer, config, false)
     this.buffer = drained.rest
     return {
       startOffset,
@@ -89,11 +83,7 @@ export class StreamBuffer {
     this.rawText = text
     this.textLength = text.length
     this.buffer = appendSpeechBuffer(this.buffer, this.sanitizer.push(nextText, true))
-    const context = { sessionID: this.sessionID, messageID: this.messageID, block, ordinal: this.ordinal }
-    speechDiagnostic("stream.text-part-ended", { ...context, text, nextText, buffer: this.buffer, cursorReset })
-    const drained = drainStreamChunks(this.buffer, config, true, (decision) => speechDiagnostic("stream.decision", {
-      ...context, ...decision, maxSpeechChunkChars: config.maxSpeechChunkChars, streamFlushChars: config.streamFlushChars,
-    }))
+    const drained = drainStreamChunks(this.buffer, config, true)
     this.buffer = drained.rest
     this.completed = true
     this.buffer = ""
