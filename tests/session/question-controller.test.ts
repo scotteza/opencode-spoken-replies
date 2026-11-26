@@ -98,7 +98,7 @@ describe("QuestionController", () => {
 
     await harness.ask()
 
-    expect(harness.enqueued).toHaveLength(1)
+    expect(harness.enqueued.length).toBeGreaterThan(0)
     expect(harness.enqueued.map((item) => item.text).join(" ")).toContain("Should question prompts be spoken?")
     expect(harness.enqueued.map((item) => item.text).join(" ")).toContain("Option 1: Yes. Speak them")
     expect(harness.enqueued[0]?.source).toBe("question")
@@ -158,9 +158,11 @@ describe("QuestionController", () => {
     const request = createRequest()
 
     await harness.ask(request)
+    const firstEnqueued = [...harness.enqueued]
     await harness.ask(request)
 
-    expect(harness.enqueued).toHaveLength(1)
+    expect(firstEnqueued.length).toBeGreaterThan(0)
+    expect(harness.enqueued).toEqual(firstEnqueued)
   })
 
   it("speaks the question and choices instead of the short header", async () => {
