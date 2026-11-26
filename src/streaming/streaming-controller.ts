@@ -22,6 +22,8 @@ export class StreamingController {
   private readonly log = createLogger("streaming")
   private readonly streams = new Map<string, StreamBuffer>()
   private readonly tasks = new Map<string, Promise<void>>()
+  private readonly observedMessages = new Set<string>()
+  private readonly stoppedMessages = new Set<string>()
   private readonly cleanup: Array<() => void> = []
   private disposed = false
 
@@ -56,9 +58,23 @@ export class StreamingController {
     for (const off of this.cleanup) off()
     this.cleanup.length = 0
     this.streams.clear()
+    this.observedMessages.clear()
+    this.stoppedMessages.clear()
+  }
+
+  stopCurrentMessages() {
+    for (const key of this.observedMessages) this.stoppedMessages.add(key)
   }
 
   private queue(event: StreamEvent, block: StreamBlock, task: () => Promise<void>) {
+    const messageKey = JSON.stringify([event.sessionID, event.assistantMessageID])
+    this.observedMessages.add(messageKey)
+    while (this.observedMessages.size > 200) {
+      const oldest = this.observedMessages.values().next().value
+      if (!oldest) break
+      this.observedMessages.delete(oldest)
+      this.stoppedMessages.delete(oldest)
+    }
     const key = streamKey(event, block)
     const previous = this.tasks.get(key) ?? Promise.resolve()
     const next = previous.then(task).catch((error) => this.log.warn("stream event failed", { error: formatError(error) }))
@@ -80,6 +96,7 @@ export class StreamingController {
       ? this.config.speakSubagentResponses && parentID === route.sessionID
       : event.sessionID === route.sessionID
     return !this.disposed && visible && allowed && this.state.snapshot().enabled
+      && !this.stoppedMessages.has(JSON.stringify([event.sessionID, event.assistantMessageID]))
   }
 
   private async keepUp(event: StreamEvent, block: StreamBlock) {
@@ -101,7 +118,7 @@ export class StreamingController {
     if (!current || this.disposed) return
     const { stream, previous, speak } = current
     const result = stream.applyDelta(event.delta, block, this.config, !previous)
-    if (!speak || !this.state.snapshot().enabled) {
+    if (!speak || !this.state.snapshot().enabled || this.stoppedMessages.has(JSON.stringify([event.sessionID, event.assistantMessageID]))) {
       stream.buffer = ""
       return
     }
@@ -120,7 +137,7 @@ export class StreamingController {
     if (!current || this.disposed) return
     const { stream, previous, speak } = current
     const result = stream.applyFinal(event.text, block, this.config, !previous)
-    for (const chunk of speak && this.state.snapshot().enabled ? result.chunks : []) {
+    for (const chunk of speak && this.state.snapshot().enabled && !this.stoppedMessages.has(JSON.stringify([event.sessionID, event.assistantMessageID])) ? result.chunks : []) {
       this.playback.enqueuePreparedChunk(chunk.text, chunk.pauseMs, "stream", {
         origin: "session.stream.ended",
         sessionID: event.sessionID,

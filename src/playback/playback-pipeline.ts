@@ -126,7 +126,9 @@ export class PlaybackPipeline {
   }
 
   isBusy() {
-    return Boolean(this.currentGenerate) || Boolean(this.currentPlay) || this.queue.readyAudio.length > 0 || this.queue.sourceItems.length > 0
+    return Boolean(this.currentGenerate && !this.currentGenerate.interrupted)
+      || Boolean(this.currentPlay && !this.currentPlay.interrupted)
+      || this.queue.readyAudio.length > 0 || this.queue.sourceItems.length > 0
   }
 
   pause() {

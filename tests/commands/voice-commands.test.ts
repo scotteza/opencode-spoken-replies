@@ -33,11 +33,13 @@ function createHarness(options: {
   state?: Partial<VoiceState>
   continuation?: AssistantHistoryEntry[]
   latestText?: string
+  busy?: boolean
 } = {}) {
   let enabled = options.state?.enabled ?? true
   let paused = options.state?.paused ?? false
   const enqueued: EnqueuedChunk[] = []
   const resets: boolean[] = []
+  let busy = options.busy ?? false
   const toasts: Toast[] = []
   const config = { ...DEFAULT_CONFIG, ...options.config }
   const route = { current: { name: "session", params: { sessionID: "session-1" } } }
@@ -66,12 +68,13 @@ function createHarness(options: {
   const playback = {
     async reset(requeueCurrent: boolean) {
       resets.push(requeueCurrent)
+      busy = false
     },
     enqueuePreparedChunk(text: string, pauseMs: number, source: string, trace?: QueueTrace) {
       enqueued.push({ text, pauseMs, source, trace })
       return 1
     },
-    isBusy: () => enqueued.length > 0,
+    isBusy: () => busy || enqueued.length > 0,
     pause() {},
     resume() {},
   }
@@ -98,6 +101,25 @@ function createHarness(options: {
 }
 
 describe("VoiceCommands history playback", () => {
+  it("stops current speech once without disabling future speech", async () => {
+    const harness = createHarness({ busy: true })
+    let stopped = 0
+    await harness.commands.stopPlayback(() => stopped++)
+    await harness.commands.stopPlayback(() => stopped++)
+    expect(stopped).toBe(1)
+    expect(harness.resets).toEqual([false])
+    expect(harness.enabled).toBe(true)
+    expect(harness.toasts).toEqual([{ variant: "info", message: "Speech stopped" }])
+  })
+
+  it("does nothing when idle or disabled", async () => {
+    const harness = createHarness({ state: { enabled: false }, latestText: "Latest." })
+    await harness.commands.stopPlayback(() => { throw new Error("unexpected stop") })
+    expect(harness.resets).toEqual([])
+    expect(harness.enqueued).toEqual([])
+    expect(harness.toasts).toEqual([])
+  })
+
   it("auto-enables speech and resets playback before queueing history", async () => {
     const harness = createHarness({
       state: { enabled: false },

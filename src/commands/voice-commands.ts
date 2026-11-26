@@ -40,31 +40,13 @@ export class VoiceCommands {
     this.toast({ variant: "success", message: "Speech enabled" })
   }
 
-  async togglePlayback(sessionID?: string) {
-    const current = this.state.snapshot()
-    this.log.info("toggle playback", {
-      sessionID: sessionID ?? this.activeSessionID(),
-      paused: current.paused,
-      busy: current.busy,
-    })
-    if (!current.enabled) {
-      this.toast({ variant: "warning", message: "Speech is disabled" })
-      return
-    }
-
-    if (current.paused) {
-      this.playback.resume()
-      this.toast({ variant: "info", message: "Speech resumed" })
-      return
-    }
-
-    if (this.playback.isBusy()) {
-      this.playback.pause()
-      this.toast({ variant: "info", message: "Speech paused" })
-      return
-    }
-
-    await this.replayLatest(sessionID)
+  async stopPlayback(stopCurrentMessages: () => void) {
+    if (!this.playback.isBusy()) return
+    this.log.info("stop playback")
+    stopCurrentMessages()
+    await this.playback.reset(false)
+    this.state.patch({ paused: false })
+    this.toast({ variant: "info", message: "Speech stopped" })
   }
 
   async replayLatest(sessionID?: string): Promise<boolean> {

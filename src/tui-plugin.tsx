@@ -178,7 +178,7 @@ export default Plugin.define({
 
     const voiceActions = {
       history: openHistory,
-      pause: async () => { await commands.togglePlayback() },
+      pause: async () => { await commands.stopPlayback(() => streaming.stopCurrentMessages()) },
       latest: async () => { await commands.replayLatest() },
       toggle: () => commands.toggleEnabled(),
       slower: async () => { adjustSpeed(-1) },
@@ -196,7 +196,7 @@ export default Plugin.define({
       mode: "global",
       commands: [
         { id: "tts.history", title: "Replay previous assistant message", group: "Voice", bind: config.shortcuts.history, palette: true, run: voiceActions.history },
-        { id: "tts.play-pause", title: "Play or pause speech", group: "Voice", bind: config.shortcuts.pause, palette: true, run: voiceActions.pause },
+        { id: "tts.play-pause", title: "Stop current speech", group: "Voice", bind: config.shortcuts.pause, palette: true, run: voiceActions.pause },
         { id: "tts.latest", title: "Replay latest assistant message", group: "Voice", bind: config.shortcuts.skipLatest, palette: true, run: voiceActions.latest },
         { id: "tts.toggle", title: "Toggle speech", group: "Voice", bind: config.shortcuts.toggle, palette: true, run: voiceActions.toggle },
         { id: "tts.slower", title: "Slow down speech", group: "Voice", bind: "ctrl+f6", palette: true, run: voiceActions.slower },

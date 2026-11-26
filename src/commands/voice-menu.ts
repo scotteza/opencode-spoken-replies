@@ -11,7 +11,7 @@ export async function openVoiceMenu(
   const entries: Array<{ value: VoiceAction; id: string; title: string }> = [
     { value: "choose", id: "tts.choose-voice", title: "Choose voice" },
     { value: "history", id: "tts.history", title: "Open assistant message history" },
-    { value: "pause", id: "tts.play-pause", title: "Play or pause speech" },
+    { value: "pause", id: "tts.play-pause", title: "Stop current speech" },
     { value: "latest", id: "tts.latest", title: "Replay latest assistant message" },
     { value: "toggle", id: "tts.toggle", title: "Enable or disable speech" },
     { value: "slower", id: "tts.slower", title: "Slow down speech" },
